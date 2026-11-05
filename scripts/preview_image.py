@@ -1,44 +1,18 @@
 """Preview an image from any of the project's NDJSON files with its boxes drawn.
 
 Usage:
-    uv run preview.py data/golf-ball-roboflow.ndjson            # random image
-    uv run preview.py data/golf-ball-roboflow.ndjson 5          # 6th image (0-based index)
-    uv run preview.py data/golf-ball.ndjson LINE_ALBUM          # first file name containing text
-    uv run preview.py data/golf-ball.ndjson 3 --save out.png    # save instead of opening a viewer
-
-Needs Pillow:  uv add pillow
+    uv run scripts/preview_image.py data/raw/golf-ball-roboflow.ndjson            # random image
+    uv run scripts/preview_image.py data/raw/golf-ball-roboflow.ndjson 5          # 6th image (0-based index)
+    uv run scripts/preview_image.py data/raw/golf-ball.ndjson LINE_ALBUM          # first file name containing text
+    uv run scripts/preview_image.py data/raw/golf-ball.ndjson 3 --save out.png    # save instead of opening a viewer
 """
 import argparse
-import io
-import json
 import random
-import urllib.request
 from pathlib import Path
 
-from PIL import Image, ImageDraw
+from PIL import ImageDraw
 
-
-def load_ndjson(path):
-    lines = [json.loads(l) for l in path.read_text(encoding="utf-8").splitlines() if l.strip()]
-    return lines[0], [r for r in lines[1:] if r.get("type") == "image"]
-
-
-def open_image(rec, ndjson_dir):
-    """Prefer a local file (path relative to the NDJSON's folder); fall back to the URL."""
-    local = ndjson_dir / rec["file"]
-    if local.exists():
-        return Image.open(local)
-    url = rec.get("url")
-    if url:
-        try:
-            with urllib.request.urlopen(url, timeout=20) as r:
-                return Image.open(io.BytesIO(r.read()))
-        except Exception as e:
-            raise SystemExit(
-                f"Could not load {rec['file']!r}: not found locally at {local} and "
-                f"URL download failed ({e}). The Ultralytics CDN links are signed and expire."
-            )
-    raise SystemExit(f"Image not found: {local} (and the record has no url)")
+from common import load_ndjson, open_image
 
 
 def draw_boxes(img, rec, class_names):

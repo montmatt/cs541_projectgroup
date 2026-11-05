@@ -6,19 +6,16 @@ Target format (one JSON object per line):
     line 2+: {"type":"image","file":...,"width":W,"height":H,"split":"train|val|test",
             "annotations":{"boxes":[[cls, x_center, y_center, w, h], ...]}}   # normalized 0-1
 
-Run: uv run coco_to_ndjson.py
+Run: uv run scripts/coco_to_ndjson.py
 """
 import json
 from collections import defaultdict
 from pathlib import Path
 
-import json
-from collections import defaultdict
-from pathlib import Path
+from common import RAW
 
-DATA = Path("data")
-ORIGINAL = DATA / "golf-ball-roboflow-original"
-OUTPUT = DATA / "golf-ball-roboflow.ndjson"
+ORIGINAL = RAW / "golf-ball-roboflow-original"
+OUTPUT = RAW / "golf-ball-roboflow.ndjson"
 
 # (split, directory)
 SPLITS = [("train", "train"), ("val", "valid"), ("test", "test")]
@@ -74,7 +71,7 @@ def main():
                 out.write(dumps({
                     "type": "image",
                     # Relative path to the JSON's folder
-                    "file": image_path.relative_to(DATA).as_posix(),
+                    "file": image_path.relative_to(RAW).as_posix(),
                     "width": img["width"],
                     "height": img["height"],
                     "split": split,
