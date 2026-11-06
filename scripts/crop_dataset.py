@@ -10,17 +10,37 @@ import json
 import sys
 from pathlib import Path
 
+import numpy as np
 from PIL import Image
 
-from common import CROPPED, RAW, load_ndjson, open_image
+from common import CROPPED, RAW, circle_mask, load_ndjson, open_image
 
 MIN_SIZE = 32  # px, shorter side of the original box; smaller balls have almost no texture
 OUT_SIZE = 128  # px, every output image is OUT_SIZE x OUT_SIZE
 SOURCES = ["golf-ball-roboflow", "golf-ball-detection", "golf-ball"]
 
 
+def mask_black(img, box):
+    """Black out everything outside the ball's circle."""
+    return Image.fromarray(np.asarray(img) * circle_mask(box, img.width))
+
+
+def remask(name):
+    """Mask existing crops in place (for sources whose CDN URLs have expired)."""
+    _, recs = load_ndjson(CROPPED / f"{name}.ndjson")
+    for rec in recs:
+        p = CROPPED / rec["file"]
+        mask_black(Image.open(p).convert("L"), rec["annotations"]["boxes"][0]).save(p, quality=95)
+    print(f"{name}: masked {len(recs)} crops in place")
+
+
 def main():
-    for name in sys.argv[1:] or SOURCES:
+    names = [a for a in sys.argv[1:] if not a.startswith("--")] or SOURCES
+    if "--remask" in sys.argv:
+        for name in names:
+            remask(name)
+        return
+    for name in names:
         header, images = load_ndjson(RAW / f"{name}.ndjson")
         header = {**header, "name": header["name"] + " (cropped)"}
         out_dir = CROPPED / name
@@ -57,6 +77,7 @@ def main():
                     bx1, by1 = min((x0 + bpx - sx) / side, 1), min((y0 + bpy - sy) / side, 1)
                     box = [cls, round((bx0 + bx1) / 2, 5), round((by0 + by1) / 2, 5),
                            round(bx1 - bx0, 5), round(by1 - by0, 5)]
+                    crop = mask_black(crop, box)
                     rel = Path(name) / rec["split"] / f"{Path(rec['file']).stem}_{i}.jpg"
                     (CROPPED / rel).parent.mkdir(parents=True, exist_ok=True)
                     crop.save(CROPPED / rel, quality=95)
