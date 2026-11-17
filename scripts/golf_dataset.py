@@ -8,17 +8,18 @@ import numpy as np
 import torch
 from torch.utils.data import ConcatDataset, DataLoader, Dataset
 
-from common import CROPPED, circle_mask, load_ndjson, open_image
+from common import ROOT, circle_mask, load_ndjson, open_image
+CLEANED = ROOT / "data" / "cleaned_final"
 
 NAMES = ["golf-ball-roboflow", "golf-ball-detection", "golf-ball"]  # all normal balls
 
 
 class GolfBalls(Dataset):
     def __init__(self, name, split, augment=False):
-        _, recs = load_ndjson(CROPPED / f"{name}.ndjson")
+        _, recs = load_ndjson(CLEANED / f"{name}.ndjson")
         imgs, masks = [], []
         for r in (r for r in recs if r["split"] == split):
-            im = open_image(r, CROPPED).convert("L")
+            im = open_image(r, CLEANED).convert("L")
             imgs.append(torch.from_numpy(np.asarray(im, dtype="float32") / 255)[None])
             masks.append(torch.from_numpy(circle_mask(r["annotations"]["boxes"][0], im.width)).float()[None])
         self.imgs, self.masks, self.augment = torch.stack(imgs), torch.stack(masks), augment
