@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-CS541 group project: golf ball defect detection with an autoencoder trained on normal balls (high reconstruction error = damaged ball). All three datasets are normal balls; there is no defect test data yet. Four-person team; no model/training code yet — the repo holds datasets, data tooling and the data loader (`scripts/golf_dataset.py`).
+CS541 group project: golf ball defect detection with an autoencoder trained on normal balls (high reconstruction error = damaged ball). All three datasets are normal balls; there is no defect test data yet. Four-person team; the repo holds datasets, data tooling, the data loader (`scripts/golf_dataset.py`) and the autoencoder (`scripts/train.py`).
 
 ## Setup
 
@@ -38,7 +38,8 @@ All datasets share one NDJSON format (Ultralytics style):
 - `scripts/coco_to_ndjson.py` — converts the Roboflow COCO export (`*/_annotations.coco.json`) to `golf-ball-roboflow.ndjson` (clamps boxes to image bounds, drops empty ones). Run: `uv run scripts/coco_to_ndjson.py`.
 - `scripts/crop_dataset.py` — builds the cropped datasets above (circular-masked); optional args limit it to named datasets (e.g. `golf-ball`); `--remask` masks existing crops in place. Records without `annotations` count as zero boxes.
 - `scripts/download_images.py` — downloads the Ultralytics-hosted images (`golf-ball-detection`, `golf-ball`) into `data/raw/<name>-original/<split>/` and rewrites each record's `file` to the local path. Run: `uv run scripts/download_images.py [name ...]`.
-- `scripts/golf_dataset.py` — autoencoder data loader over all three cropped datasets: `golf_balls(split)` / `loader(split)` yield `(img, mask)` `[1,128,128]` (image black outside the circle; compute loss only where mask is 1). Train split gets flips + brightness augmentation. `uv run scripts/golf_dataset.py` runs a self-check.
+- `scripts/golf_dataset.py` — autoencoder data loader over the cleaned crops in `data/cleaned_final/` (see `scripts/README_cleaning.md`): `golf_balls(split)` / `loader(split)` yield `(img, mask)` `[1,128,128]` (image black outside the circle; compute loss only where mask is 1). Train split gets flips + brightness augmentation. `Defective(ds)` adds deterministic synthetic scratches/scuffs (stand-in defect set for evaluation). `uv run scripts/golf_dataset.py` runs a self-check.
+- `scripts/train.py` — conv autoencoder (`AE`, bottleneck `--z`), masked-MSE training with early stopping on val, best model saved to `checkpoints/ae_z<z>.pt` (gitignored). Then reports test AUROC (normal vs `Defective`) and catch/false-alarm rates at the 95th-percentile val threshold for two scores: mean error and peak (max of 9×9-blurred error map). `uv run scripts/train.py [--z 128] [--epochs 50]`.
 - `scripts/preview_image.py` — draws boxes on one image. `uv run scripts/preview_image.py data/raw/<file>.ndjson [index|name-substring] [--save out.png]`; random image if no selector. Prefers the local file, falls back to the URL.
 
 ## Conventions
