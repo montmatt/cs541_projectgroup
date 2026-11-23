@@ -6,33 +6,12 @@ uv run scripts/train.py [--z 128] [--epochs 50] [--patience 5]
 import argparse
 
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
 
 from common import ROOT
 from golf_dataset import Defective, golf_balls, loader
-
-
-def down(i, o):
-    return nn.Sequential(nn.Conv2d(i, o, 4, 2, 1), nn.BatchNorm2d(o), nn.ReLU())
-
-
-def up(i, o):
-    return nn.Sequential(nn.ConvTranspose2d(i, o, 4, 2, 1), nn.BatchNorm2d(o), nn.ReLU())
-
-
-class AE(nn.Module):
-    def __init__(self, z=128):
-        super().__init__()
-        self.enc = nn.Sequential(down(1, 32), down(32, 64), down(64, 128), down(128, 256),  # 128 -> 8
-                                 nn.Flatten(), nn.Linear(256 * 8 * 8, z))
-        self.dec = nn.Sequential(nn.Linear(z, 256 * 8 * 8), nn.Unflatten(1, (256, 8, 8)),
-                                 up(256, 128), up(128, 64), up(64, 32),
-                                 nn.ConvTranspose2d(32, 1, 4, 2, 1), nn.Sigmoid())
-
-    def forward(self, x):
-        return self.dec(self.enc(x))
+from model import AE
 
 
 def score(x, y, m):
