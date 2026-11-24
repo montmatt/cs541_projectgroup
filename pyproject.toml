@@ -8,4 +8,5 @@ dependencies = [
     "opencv-python>=5.0.0.93",
     "pillow>=13.0.0",
     "torch>=2.15.0",
+    "wandb>=0.31.2",
 ]

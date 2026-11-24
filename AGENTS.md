@@ -1,11 +1,11 @@
 # AGENTS.md
 
-CS541 group project: golf ball defect detection with an autoencoder trained on normal balls (high reconstruction error = damaged ball). All three datasets are normal balls; there is no defect test data yet. Four-person team; no model/training code is committed yet (untracked `checkpoints/ae_z{32,64,128}.pt` are local autoencoder weights) — the repo holds datasets, data tooling, the cleaning pipeline and the data loader (`scripts/golf_dataset.py`).
+CS541 group project: golf ball defect detection with an autoencoder trained on normal balls (high reconstruction error = damaged ball). All three datasets are normal balls; there is no defect test data yet. Four-person team; the repo holds datasets, data tooling, the cleaning pipeline, the data loader (`scripts/golf_dataset.py`), the autoencoder (`scripts/model.py`), training/eval (`scripts/train.py`, `scripts/evaluate.py`) and a wandb hyperparameter sweep (`scripts/sweep.py`).
 
 ## Setup
 
 - Python >=3.12, managed with **uv**. Use `uv sync`, `uv add <pkg>` (never pip), `uv run scripts/<script>.py`.
-- Dependencies: Pillow, numpy, torch, ImageHash, opencv-python (the last two are for the cleaning scripts).
+- Dependencies: Pillow, numpy, torch, ImageHash, opencv-python (the last two are for the cleaning scripts), wandb (sweeps; needs `wandb login`).
 
 ## Layout
 
@@ -37,7 +37,7 @@ All datasets share one NDJSON format (Ultralytics style):
 
 Same layout/NDJSON format as `data/cropped/` (128×128 masked grayscale crops, original splits kept), filtered from 4,320 crops to **2,731** (train 2,088 / val 402 / test 241). Pipeline, run in order from the repo root (each output dir must not already exist):
 1. `scripts/01_sha256.py` — drops byte-identical files (`--input data/cropped --output data/cleaned_sha`).
-2. `scripts/02_phash.py` — greedy 64-bit pHash grouping, **`--threshold 1`** (Hamming distance); keeps the sharpest image per group (mask-aware Laplacian variance). Fully automatic (the older `scripts/README_cleaning.md` describes an interactive `--review` flow and threshold 4 — outdated).
+2. `scripts/02_phash.py` — greedy 64-bit pHash grouping, **`--threshold 1`** (Hamming distance); keeps the sharpest image per group (mask-aware Laplacian variance). Fully automatic.
 3. `scripts/03_laplacian.py` — drops blurry crops, **`--threshold 40`** (provisional); without `--threshold` it only writes `laplacian_scores.csv`.
 
 `scripts/cleaning_common.py` has the shared NDJSON/copy helpers. Caveats: splits aren't re-balanced and near-identical frames may still straddle splits (leakage); see `data/DATA_CLEANING.md`.
@@ -47,11 +47,18 @@ Same layout/NDJSON format as `data/cropped/` (128×128 masked grayscale crops, o
 - `scripts/coco_to_ndjson.py` — converts the Roboflow COCO export (`*/_annotations.coco.json`) to `golf-ball-roboflow.ndjson` (clamps boxes to image bounds, drops empty ones). Run: `uv run scripts/coco_to_ndjson.py`.
 - `scripts/crop_dataset.py` — builds the cropped datasets above (circular-masked); optional args limit it to named datasets (e.g. `golf-ball`); `--remask` masks existing crops in place. Records without `annotations` count as zero boxes.
 - `scripts/download_images.py` — downloads the Ultralytics-hosted images (`golf-ball-detection`, `golf-ball`) into `data/raw/<name>-original/<split>/` and rewrites each record's `file` to the local path. Run: `uv run scripts/download_images.py [name ...]`.
-- `scripts/golf_dataset.py` — autoencoder data loader over all three datasets in `data/cleaned_final/` (`CLEANED`): `golf_balls(split)` / `loader(split)` yield `(img, mask)` `[1,128,128]` (image black outside the circle; compute loss only where mask is 1). Train split gets flips + brightness augmentation. `uv run scripts/golf_dataset.py` runs a self-check (expect train 2088 / val 402 / test 241).
+- `scripts/golf_dataset.py` — autoencoder data loader over all three datasets in `data/cleaned_final/` (`CLEANED`): `golf_balls(split)` / `loader(split)` yield `(img, mask)` `[1,128,128]` (image black outside the circle; compute loss only where mask is 1). Train split gets flips + brightness augmentation. `Defective(ds)` adds deterministic, deliberately heavy synthetic damage — 3–6 scratches, jagged cracks, gouges, noisy scuff patches and large black broken-off chunks (stand-in defect set for evaluation; much easier to detect than subtle real damage). `uv run scripts/golf_dataset.py` runs a self-check (expect train 2088 / val 402 / test 241).
 - `scripts/01_sha256.py`, `02_phash.py`, `03_laplacian.py`, `cleaning_common.py` — cleaning pipeline above.
+- `scripts/model.py` — `AE(z=128, base=32, norm="batch", act="relu")`: 4 stride-2 convs 128→8×8, linear bottleneck `z`, mirrored decoder, sigmoid. Defaults match the baseline checkpoints; the extra args exist for the sweep.
+- `scripts/train.py` — masked-MSE training of `AE` (bottleneck `--z`) with early stopping on val; best model saved to `checkpoints/ae_z<z>.pt` (gitignored), then calls `evaluate.evaluate`. `uv run scripts/train.py [--z 128] [--epochs 50]`. Only exposes `--z/--epochs/--patience/--lr`, not the other sweep params.
+- `scripts/evaluate.py` — `score`/`scores`/`auroc`/`evaluate`/`get_device` (shared with train.py) plus a CLI to evaluate a saved checkpoint: test AUROC (normal vs `Defective`) and catch/false-alarm rates at the 95th-percentile val threshold for mean error and peak (max of 9×9-blurred error map). `uv run scripts/evaluate.py <ckpt> [--z --base --norm --act]` — flags must match how the checkpoint was trained.
+- `configs/best.json` — best sweep config so far (run `0rfyew3h`); `scripts/evaluate.py --config configs/best.json` reads it. Weights: `checkpoints/best.pt` (gitignored).
+- `scripts/sweep.py` — wandb Bayesian sweep (entity `neelawsare-worcester-polytechnic-institute`, project `golf-ball-defect-detection`) minimizing masked val MSE over latent, base, norm, act, loss (mse/l1), lr, weight_decay, batch_size, augment (epochs fixed 40; Hyperband early stop). `uv run scripts/sweep.py [-n 30] [--sweep <id>] [--smoke]`; `--sweep` joins an existing sweep (e.g. from another machine). Each run saves its best weights to `checkpoints/sweep/<run_id>.pt`. Gotchas: wandb's agent stops early-terminated runs by raising a bare `Exception` in the run's thread — `train()` catches that so they show as finished, not failed; val MSE rewards reconstruction, not defect detection, so check top runs with `evaluate.py`.
+- `scripts/preview_defects.py` — saves a grid of normal test balls over their `Defective` versions. `uv run scripts/preview_defects.py [--n 8] [--out defects_preview.png]`.
 - `scripts/preview_image.py` — draws boxes on one image. `uv run scripts/preview_image.py data/raw/<file>.ndjson [index|name-substring] [--save out.png]`; random image if no selector. Prefers the local file, falls back to the URL.
 
 ## Conventions
 
 - `README.md` documents datasets and team; update it when adding data.
+- `wandb/`, `checkpoints/` and `defects_preview.png` are gitignored; never delete `wandb/` mid-sweep (local run logs).
 - Git: work happens on per-person branches (e.g. `matthew-montero`); `main` is the PR target.

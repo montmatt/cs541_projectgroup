@@ -1,0 +1,14 @@
+{
+  "source": "wandb sweep xb8exdu5, run 0rfyew3h (revived-sweep-11)",
+  "val_loss": 0.00534,
+  "z": 128,
+  "base": 64,
+  "norm": "none",
+  "act": "leaky",
+  "loss": "mse",
+  "lr": 0.0005685580811267612,
+  "weight_decay": 1.753590550969645e-05,
+  "batch_size": 32,
+  "augment": true,
+  "epochs": 40
+}
