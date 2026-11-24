@@ -10,7 +10,7 @@ import torch
 from common import ROOT
 from golf_dataset import golf_balls, loader
 from model import AE
-from test import evaluate, get_device, score, scores
+from evaluate import evaluate, get_device, score, scores
 
 
 def main():

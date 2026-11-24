@@ -1,6 +1,6 @@
 """Evaluate an autoencoder on normal test balls vs the same balls with synthetic defects.
 
-uv run scripts/test.py checkpoints/ae_z128.pt [--z 128] [--base 32] [--norm batch] [--act relu]
+uv run scripts/evaluate.py checkpoints/ae_z128.pt [--z 128] [--base 32] [--norm batch] [--act relu]
 The model flags must match how the checkpoint was trained (sweep runs: see the run's config).
 """
 import argparse
