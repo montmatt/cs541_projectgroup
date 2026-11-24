@@ -6,37 +6,11 @@ uv run scripts/train.py [--z 128] [--epochs 50] [--patience 5]
 import argparse
 
 import torch
-import torch.nn.functional as F
-from torch.utils.data import DataLoader
 
 from common import ROOT
-from golf_dataset import Defective, golf_balls, loader
+from golf_dataset import golf_balls, loader
 from model import AE
-
-
-def score(x, y, m):
-    """Per-image MSE over ball pixels only (normalized by ball area)."""
-    return ((x - y) ** 2 * m).sum((1, 2, 3)) / m.sum((1, 2, 3))
-
-
-@torch.no_grad()
-def scores(model, ds, dev):
-    """Per-image (mean, peak) error. mean = score() over the ball; peak = max of the 9x9-blurred
-    error map, which catches small defects (thin scratches) that the mean dilutes."""
-    model.eval()
-    mean, peak = [], []
-    for x, m in DataLoader(ds, 64):
-        x, m = x.to(dev), m.to(dev)
-        e = (model(x) - x) ** 2 * m
-        mean.append((e.sum((1, 2, 3)) / m.sum((1, 2, 3))).cpu())
-        peak.append(F.avg_pool2d(e, 9, 1, 4).amax((1, 2, 3)).cpu())
-    return torch.cat(mean), torch.cat(peak)
-
-
-def auroc(normal, defect):
-    """P(a defective ball scores higher than a normal one); ties count half."""
-    d = defect[:, None] - normal[None]
-    return ((d > 0).float() + 0.5 * (d == 0).float()).mean().item()
+from test import evaluate, get_device, score, scores
 
 
 def main():
@@ -48,7 +22,7 @@ def main():
     a = p.parse_args()
 
     torch.manual_seed(0)
-    dev = "mps" if torch.backends.mps.is_available() else "cuda" if torch.cuda.is_available() else "cpu"
+    dev = get_device()
     ckpt = ROOT / "checkpoints" / f"ae_z{a.z}.pt"
     ckpt.parent.mkdir(exist_ok=True)
 
@@ -76,13 +50,8 @@ def main():
             break
 
     model.load_state_dict(torch.load(ckpt, map_location=dev))
-    test = golf_balls("test")
-    sv, s0, s1 = scores(model, val, dev), scores(model, test, dev), scores(model, Defective(test), dev)
     print(f"\nsaved {ckpt.relative_to(ROOT)}  (best val {best:.5f})")
-    for i, name in enumerate(("mean", "peak")):
-        thr = sv[i].quantile(0.95)  # val is all normal: targets a 5% false-alarm rate
-        print(f"{name}: test AUROC {auroc(s0[i], s1[i]):.3f}  |  threshold {thr:.5f}: "
-              f"defects caught {(s1[i] > thr).float().mean():.2f}, normals flagged {(s0[i] > thr).float().mean():.2f}")
+    evaluate(model, dev)
 
 
 if __name__ == "__main__":

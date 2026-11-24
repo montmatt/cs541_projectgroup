@@ -45,21 +45,35 @@ def golf_balls(split, augment=False):
 
 
 def add_defect(img, mask, rng=random):
-    """Paint 1-3 synthetic scratches/scuffs inside the ball (dark gouge or bright scuff).
+    """Paint 3-6 heavy synthetic damage marks inside the ball: scratches, jagged cracks, gouges,
+    noisy scuff patches and large broken-off chunks (dark or bright).
     ponytail: stand-in for real damaged balls; swap in real defect photos when the team has them."""
-    canvas = Image.new("L", img.shape[1:])
-    d = ImageDraw.Draw(canvas)
+    size = img.shape[1:]
     ys, xs = mask[0].nonzero(as_tuple=True)
-    for _ in range(rng.randint(1, 3)):
-        i, j = rng.randrange(len(xs)), rng.randrange(len(xs))
-        x, y = xs[i].item(), ys[i].item()
-        if rng.random() < 0.5:  # scratch; stays inside since the circle is convex
-            d.line([(x, y), (xs[j].item(), ys[j].item())], fill=255, width=rng.randint(1, 3))
-        else:  # scuff
-            r = rng.randint(4, 12)
+    pt = lambda: (xs[(k := rng.randrange(len(xs)))].item(), ys[k].item())  # random point inside the ball
+    for _ in range(rng.randint(3, 6)):
+        canvas = Image.new("L", size)
+        d = ImageDraw.Draw(canvas)
+        kind = rng.choice(["scratch", "crack", "gouge", "scuff", "chunk"])
+        if kind == "scratch":  # stays inside since the circle is convex
+            d.line([pt(), pt()], fill=255, width=rng.randint(3, 6))
+        elif kind == "crack":  # jagged random walk
+            x, y = pt()
+            for _ in range(rng.randint(6, 10)):
+                nx, ny = x + rng.randint(-14, 14), y + rng.randint(-14, 14)
+                d.line([(x, y), (nx, ny)], fill=255, width=rng.randint(2, 4))
+                x, y = nx, ny
+        else:
+            x, y = pt()
+            r = {"gouge": rng.randint(8, 20), "scuff": rng.randint(12, 26), "chunk": rng.randint(20, 36)}[kind]
             d.ellipse([x - r, y - r, x + r, y + r], fill=255)
-    m = torch.from_numpy(np.asarray(canvas, dtype="float32") / 255)[None] * mask
-    return img * (1 - m) + rng.choice([0.1, 0.9]) * m, mask
+        m = torch.from_numpy(np.asarray(canvas, dtype="float32") / 255)[None] * mask
+        if kind == "scuff":  # grey, grainy patch
+            fill = (0.5 + 0.25 * torch.randn(img.shape, generator=None)).clamp(0, 1)
+        else:
+            fill = rng.choice([0.05, 0.95]) if kind != "chunk" else 0.0  # broken-off chunk is a hole
+        img = img * (1 - m) + fill * m
+    return img, mask
 
 
 class Defective(Dataset):
