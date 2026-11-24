@@ -80,6 +80,16 @@ uv run scripts/sweep.py --sweep <id> -n 20   # join an existing sweep from any m
 
 Low validation loss means good reconstruction, not necessarily good defect detection, so evaluate the best few runs with `scripts/evaluate.py` using that run's `latent`/`base`/`norm`/`act`.
 
+### Best hyperparameters so far
+
+Saved in [`configs/best.json`](configs/best.json): wandb sweep `xb8exdu5`, run `0rfyew3h` (`revived-sweep-11`), 14M parameters, val loss 0.00534. Weights are in `checkpoints/best.pt` (gitignored, not shared through git).
+
+| z | base | norm | act | loss | lr | weight decay | batch | augment | epochs |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 128 | 64 | none | leaky ReLU | MSE | 5.7e-4 | 1.8e-5 | 32 | yes | 40 |
+
+Test result on the heavy synthetic defects: mean-error AUROC 0.983 (about 84% of defects caught at 2% false alarms), peak-error AUROC 0.978 (about 85% caught at 5%). Reproduce with `uv run scripts/evaluate.py checkpoints/best.pt --config configs/best.json`. `scripts/train.py` can't retrain this config yet (it lacks AdamW, the cosine schedule and most of these flags).
+
 ## Setup
 
 This project uses uv.
