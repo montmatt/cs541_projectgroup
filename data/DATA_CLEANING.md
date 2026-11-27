@@ -22,7 +22,7 @@ The final dataset contains **2,731 images**, retaining approximately **63.2%** o
 
 ## 2. Initial Preprocessing
 
-Before deduplication, the existing cropping pipeline (`scripts/crop_dataset.py`) prepares individual golf ball images.
+Before deduplication, the existing cropping pipeline (`scripts/data/crop_dataset.py`) prepares individual golf ball images.
 
 The preprocessing steps include:
 
@@ -41,7 +41,7 @@ The 32-pixel minimum-size filter is applied during cropping, not during subseque
 
 ### Stage 1: Exact Duplicate Removal (SHA-256)
 
-**Script:** `scripts/01_sha256.py`
+**Script:** `scripts/clean.py sha`
 
 SHA-256 generates a cryptographic hash for each image file. Images with identical file contents produce identical hashes.
 
@@ -56,7 +56,7 @@ This step removes redundant files without comparing their visual appearance.
 
 ### Stage 2: Near-Duplicate Removal (pHash)
 
-**Script:** `scripts/02_phash.py`
+**Script:** `scripts/clean.py phash`
 
 Perceptual hashing generates a compact representation of an image's visual structure. Unlike SHA-256, pHash can identify images that are visually similar even when their underlying file contents differ.
 
@@ -80,7 +80,7 @@ This threshold is a heuristic rather than a guarantee of visual identity. Distin
 
 ### Stage 3: Blur Filtering (Laplacian Variance)
 
-**Script:** `scripts/03_laplacian.py`
+**Script:** `scripts/clean.py laplacian`
 
 Laplacian variance is used as a measure of image sharpness.
 
@@ -106,22 +106,18 @@ The script also produces `laplacian_scores.csv` for recording image sharpness sc
 Run the cleaning stages sequentially from the project root:
 
 ```bash
-uv run python scripts/01_sha256.py \
-  --input data/cropped \
-  --output data/cleaned_sha
-
-uv run python scripts/02_phash.py \
-  --input data/cleaned_sha \
-  --output data/cleaned_phash \
-  --threshold 1
-
-uv run python scripts/03_laplacian.py \
-  --input data/cleaned_phash \
-  --output data/cleaned_final \
-  --threshold 40
+uv run scripts/clean.py all
 ```
 
-The shared `scripts/cleaning_common.py` module provides utilities for loading image records, processing directories, saving filtered datasets, and generating reports. It does not independently execute the three filtering stages.
+This runs the three stages below in order with the thresholds used for `cleaned_final` (pHash `1`, Laplacian `40`). Each stage can also be run alone:
+
+```bash
+uv run scripts/clean.py sha       --input data/cropped       --output data/cleaned_sha
+uv run scripts/clean.py phash     --input data/cleaned_sha   --output data/cleaned_phash --threshold 1
+uv run scripts/clean.py laplacian --input data/cleaned_phash --output data/cleaned_final --threshold 40
+```
+
+The shared `golfball/cleaning.py` module provides utilities for loading image records, processing directories, saving filtered datasets, generating reports, and the mask-aware sharpness score used by both the pHash and Laplacian stages.
 
 The pipeline is automated and does not require manual review of near-duplicate image groups.
 
@@ -167,7 +163,7 @@ The threshold of `1` was selected as a conservative compromise: it removes extre
 
 ## 6. Dataset Loading and Verification
 
-**Script:** `scripts/golf_dataset.py`
+**Module:** `golfball/dataset.py`
 
 The dataset loader is configured to read the final cleaned dataset from:
 
@@ -178,7 +174,7 @@ data/cleaned_final/
 To verify the dataset:
 
 ```bash
-uv run python scripts/golf_dataset.py
+uv run -m golfball.dataset
 ```
 
 The verification run produced:

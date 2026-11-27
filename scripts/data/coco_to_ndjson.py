@@ -6,13 +6,13 @@ Target format (one JSON object per line):
     line 2+: {"type":"image","file":...,"width":W,"height":H,"split":"train|val|test",
             "annotations":{"boxes":[[cls, x_center, y_center, w, h], ...]}}   # normalized 0-1
 
-Run: uv run scripts/coco_to_ndjson.py
+Run: uv run scripts/data/coco_to_ndjson.py
 """
 import json
 from collections import defaultdict
 from pathlib import Path
 
-from common import RAW
+from golfball.paths import RAW
 
 ORIGINAL = RAW / "golf-ball-roboflow-original"
 OUTPUT = RAW / "golf-ball-roboflow.ndjson"

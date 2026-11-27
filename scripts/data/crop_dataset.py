@@ -3,8 +3,8 @@ OUT_SIZE x OUT_SIZE. Skips boxes whose shorter side is under MIN_SIZE px (in the
 original image) and images with no boxes.
 
 Writes data/cropped/<name>/<split>/*.jpg and data/cropped/<name>.ndjson (same format;
-the box is the ball's position inside the square crop, so preview_image.py still works).
-Run: uv run scripts/crop_dataset.py [name ...]
+the box is the ball's position inside the square crop, so preview.py image still works).
+Run: uv run scripts/data/crop_dataset.py [name ...]
 """
 import json
 import sys
@@ -13,7 +13,7 @@ from pathlib import Path
 import numpy as np
 from PIL import Image
 
-from common import CROPPED, RAW, circle_mask, load_ndjson, open_image
+from golfball.paths import CROPPED, RAW, circle_mask, load_ndjson, open_image
 
 MIN_SIZE = 32  # px, shorter side of the original box; smaller balls have almost no texture
 OUT_SIZE = 128  # px, every output image is OUT_SIZE x OUT_SIZE

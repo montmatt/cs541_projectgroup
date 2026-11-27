@@ -11,7 +11,7 @@ import torch
 from PIL import Image, ImageDraw
 from torch.utils.data import ConcatDataset, DataLoader, Dataset
 
-from common import ROOT, circle_mask, load_ndjson, open_image
+from golfball.paths import ROOT, circle_mask, load_ndjson, open_image
 CLEANED = ROOT / "data" / "cleaned_final"
 
 NAMES = ["golf-ball-roboflow", "golf-ball-detection", "golf-ball"]  # all normal balls

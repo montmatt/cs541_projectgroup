@@ -1,4 +1,4 @@
-"""Convolutional autoencoder shared by train.py and sweep.py.
+"""Convolutional autoencoder used by train.py, sweep.py and evaluate.py.
 
 Defaults match the saved checkpoints/ae_z*.pt (base=32, batch norm, ReLU), so they load as-is.
 """

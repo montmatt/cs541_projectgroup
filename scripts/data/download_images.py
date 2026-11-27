@@ -1,6 +1,6 @@
 """Download the CDN images of the URL-only datasets into data/raw/<name>-original/<split>/
 and point each record's `file` at the local copy (the signed URLs expire).
-Run: uv run scripts/download_images.py [name ...]
+Run: uv run scripts/data/download_images.py [name ...]
 """
 import json
 import sys
@@ -8,7 +8,7 @@ import urllib.request
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
-from common import RAW
+from golfball.paths import RAW
 
 SOURCES = ["golf-ball-detection", "golf-ball"]
 

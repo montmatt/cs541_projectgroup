@@ -1,4 +1,4 @@
-"""Shared NDJSON utilities for CS541 golf ball cleaning scripts.
+"""Shared NDJSON + sharpness utilities for the cleaning pipeline (scripts/clean.py).
 
 The input directory should have <dataset>.ndjson at its root and images at paths
 relative to that directory, e.g. golf-ball/train/image_0.jpg.
@@ -6,6 +6,9 @@ relative to that directory, e.g. golf-ball/train/image_0.jpg.
 import json
 import shutil
 from pathlib import Path
+
+import cv2
+import numpy as np
 
 
 def read_datasets(root: Path):
@@ -67,3 +70,17 @@ def parse_dirs(args):
 def write_json(path, data):
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(data, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+
+
+def sharpness(path, margin=5):
+    """Variance of Laplacian on the eroded non-black ball interior (avoids the artificial mask edge).
+    JPEG can leave nonzero background pixels, so intensity is thresholded at 12 before erosion.
+    Returns None if fewer than 100 interior pixels remain."""
+    img = cv2.imread(str(path), cv2.IMREAD_GRAYSCALE)
+    if img is None:
+        raise ValueError(f'Could not decode image: {path}')
+    k = 2 * margin + 1
+    inner = cv2.erode(np.uint8(img > 12) * 255, np.ones((k, k), dtype=np.uint8)) > 0
+    if inner.sum() < 100:
+        return None
+    return float(cv2.Laplacian(img, cv2.CV_64F)[inner].var())

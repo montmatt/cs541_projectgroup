@@ -11,13 +11,13 @@ Always MSE-on-mask for val so runs with different train losses stay comparable.
 import argparse
 import gc
 import os
+from pathlib import Path
 
 import torch
 import wandb
-from torch.utils.data import DataLoader
 
-from golf_dataset import golf_balls
-from model import AE
+from golfball.engine import fit, get_device
+from golfball.model import AE
 
 ENTITY = "neelawsare-worcester-polytechnic-institute"
 PROJECT = "golf-ball-defect-detection"
@@ -42,31 +42,6 @@ SWEEP = {
 }
 
 
-def masked(err, mask):
-    return (err * mask).sum() / mask.sum()
-
-
-@torch.no_grad()
-def evaluate(model, dl, dev):
-    model.eval()
-    tot = n = 0
-    for x, m in dl:
-        x, m = x.to(dev), m.to(dev)
-        tot += masked((model(x) - x) ** 2, m).item() * len(x)
-        n += len(x)
-    return tot / n
-
-
-_cache = {}
-
-
-def data(split, augment):  # sweep runs share a process: load images once
-    k = (split, augment)
-    if k not in _cache:
-        _cache[k] = golf_balls(split, augment)
-    return _cache[k]
-
-
 def train(smoke=False):
     try:
         _train(smoke)
@@ -85,36 +60,14 @@ def _train(smoke=False):
     cfg = {k: v.get("value", v.get("values", [None])[0]) for k, v in SWEEP["parameters"].items()}
     run = wandb.init(config={**cfg, "epochs": 1, "lr": 1e-3, "weight_decay": 1e-5} if smoke else None)
     c = run.config
-    dev = "cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu"
+    dev = get_device()
     model = AE(c.latent, c.base, c.norm, c.act).to(dev)
-    opt = torch.optim.AdamW(model.parameters(), c.lr, weight_decay=c.weight_decay)
-    sched = torch.optim.lr_scheduler.CosineAnnealingLR(opt, c.epochs)
-    dist = (lambda a, b: (a - b) ** 2) if c.loss == "mse" else (lambda a, b: (a - b).abs())
-    tr = DataLoader(data("train", c.augment), c.batch_size, shuffle=True, drop_last=True)
-    va = DataLoader(data("val", False), 128)
     run.summary["params"] = sum(p.numel() for p in model.parameters())
-    best = float("inf")
-    for ep in range(c.epochs):
-        model.train()
-        tot = n = 0
-        for x, m in tr:
-            x, m = x.to(dev), m.to(dev)
-            loss = masked(dist(model(x), x), m)
-            opt.zero_grad()
-            loss.backward()
-            opt.step()
-            tot += loss.item() * len(x)
-            n += len(x)
-        sched.step()
-        val = evaluate(model, va, dev)
-        run.log({"epoch": ep, "train_loss": tot / n, "val_loss": val, "lr": sched.get_last_lr()[0]})
-        if val < best:
-            best = val
-            os.makedirs(CKPT, exist_ok=True)
-            torch.save(model.state_dict(), f"{CKPT}/{run.id}.pt")
-    run.summary["best_val_loss"] = best
+    run.summary["best_val_loss"] = fit(
+        model, dev, epochs=c.epochs, lr=c.lr, weight_decay=c.weight_decay, loss=c.loss, batch_size=c.batch_size,
+        augment=c.augment, cosine=True, ckpt=Path(CKPT) / f"{run.id}.pt", log=run.log)
     run.finish()
-    del model, opt, sched, tr, va  # sweep trials share one process: release GPU memory between runs
+    del model  # sweep trials share one process: release GPU memory between runs
     gc.collect()
     if dev == "mps":
         torch.mps.empty_cache()
