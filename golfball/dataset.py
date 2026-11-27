@@ -44,28 +44,29 @@ def golf_balls(split, augment=False):
     return ConcatDataset([GolfBalls(n, split, augment) for n in NAMES])
 
 
-def add_defect(img, mask, rng=random):
+def add_defect(img, mask, rng=random, size=3):
     """Paint 3-6 heavy synthetic damage marks inside the ball: scratches, jagged cracks, gouges,
     noisy scuff patches and large broken-off chunks (dark or bright).
     ponytail: stand-in for real damaged balls; swap in real defect photos when the team has them."""
-    size = img.shape[1:]
+    shape, scale = img.shape[1:], size / 5  # size 0-10 scales every mark; 5 = the original (heavy) look
+    sc = lambda v: max(1, round(v * scale))
     ys, xs = mask[0].nonzero(as_tuple=True)
     pt = lambda: (xs[(k := rng.randrange(len(xs)))].item(), ys[k].item())  # random point inside the ball
     for _ in range(rng.randint(3, 6)):
-        canvas = Image.new("L", size)
+        canvas = Image.new("L", shape)
         d = ImageDraw.Draw(canvas)
         kind = rng.choice(["scratch", "crack", "gouge", "scuff", "chunk"])
         if kind == "scratch":  # stays inside since the circle is convex
-            d.line([pt(), pt()], fill=255, width=rng.randint(3, 6))
+            d.line([pt(), pt()], fill=255, width=sc(rng.randint(3, 6)))
         elif kind == "crack":  # jagged random walk
             x, y = pt()
             for _ in range(rng.randint(6, 10)):
-                nx, ny = x + rng.randint(-14, 14), y + rng.randint(-14, 14)
-                d.line([(x, y), (nx, ny)], fill=255, width=rng.randint(2, 4))
+                nx, ny = x + sc(rng.randint(-14, 14)), y + sc(rng.randint(-14, 14))
+                d.line([(x, y), (nx, ny)], fill=255, width=sc(rng.randint(2, 4)))
                 x, y = nx, ny
         else:
             x, y = pt()
-            r = {"gouge": rng.randint(8, 20), "scuff": rng.randint(12, 26), "chunk": rng.randint(20, 36)}[kind]
+            r = sc({"gouge": rng.randint(8, 20), "scuff": rng.randint(12, 26), "chunk": rng.randint(20, 36)}[kind])
             d.ellipse([x - r, y - r, x + r, y + r], fill=255)
         m = torch.from_numpy(np.asarray(canvas, dtype="float32") / 255)[None] * mask
         if kind == "scuff":  # grey, grainy patch
@@ -78,14 +79,14 @@ def add_defect(img, mask, rng=random):
 
 class Defective(Dataset):
     """Wraps a dataset of normal balls; item i gets a synthetic defect (same one every time)."""
-    def __init__(self, ds):
-        self.ds = ds
+    def __init__(self, ds, size=3):  # size 0-10: defect scale (5 = original look)
+        self.ds, self.size = ds, size
 
     def __len__(self):
         return len(self.ds)
 
     def __getitem__(self, i):
-        return add_defect(*self.ds[i], random.Random(i))
+        return add_defect(*self.ds[i], random.Random(i), self.size)
 
 
 def loader(split, batch_size=64, **kw):

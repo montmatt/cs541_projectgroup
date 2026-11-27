@@ -2,7 +2,7 @@
 
 uv run scripts/preview.py image data/raw/<file>.ndjson [index|name-substring] [--save out.png]
     Draw an image's boxes; random image if no selector. Prefers the local file, falls back to the URL.
-uv run scripts/preview.py defects [--n 8] [--out outputs/defects_preview.png]
+uv run scripts/preview.py defects [--n 8] [--size 3] [--out outputs/defects_preview.png]
     Grid of normal test balls (top row) over the same balls with synthetic defects (bottom row).
 """
 import argparse
@@ -48,7 +48,7 @@ def image(a):
 def defects(a):
     from golfball.dataset import Defective, golf_balls  # imports torch; keep out of `image`
     test = golf_balls("test")
-    bad = Defective(test)
+    bad = Defective(test, a.size)
     idx = np.linspace(0, len(test) - 1, a.n).astype(int).tolist()  # spread across the split
     row = lambda ds: np.hstack([(ds[i][0][0].numpy() * 255).astype("uint8") for i in idx])
     out = Path(a.out)
@@ -66,6 +66,7 @@ s.add_argument("--save", type=Path, help="save to this path instead of opening a
 s.set_defaults(fn=image)
 s = sub.add_parser("defects")
 s.add_argument("--n", type=int, default=8)
+s.add_argument("--size", type=int, default=3, choices=range(11), help="defect size 0-10")
 s.add_argument("--out", default=str(ROOT / "outputs" / "defects_preview.png"))
 s.set_defaults(fn=defects)
 a = p.parse_args()

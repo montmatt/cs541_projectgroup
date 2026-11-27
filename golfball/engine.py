@@ -35,10 +35,10 @@ def auroc(normal, defect):
     return ((d > 0).float() + 0.5 * (d == 0).float()).mean().item()
 
 
-def evaluate(model, dev):
-    """Print test AUROC and detection rates; thresholds come from the (all-normal) val split."""
+def evaluate(model, dev, size=3):
+    """Print test AUROC (defect scale `size`, 0-10) and detection rates; thresholds come from the (all-normal) val split."""
     val, test = golf_balls("val"), golf_balls("test")
-    sv, s0, s1 = scores(model, val, dev), scores(model, test, dev), scores(model, Defective(test), dev)
+    sv, s0, s1 = scores(model, val, dev), scores(model, test, dev), scores(model, Defective(test, size), dev)
     for i, name in enumerate(("mean", "peak")):
         thr = sv[i].quantile(0.95)  # targets a 5% false-alarm rate
         print(f"{name}: test AUROC {auroc(s0[i], s1[i]):.3f}  |  threshold {thr:.5f}: "

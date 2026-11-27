@@ -10,5 +10,7 @@
   "weight_decay": 1.753590550969645e-05,
   "batch_size": 32,
   "augment": true,
-  "epochs": 40
+  "epochs": 40,
+  "cosine": true,
+  "patience": 0
 }

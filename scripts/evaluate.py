@@ -18,6 +18,7 @@ p.add_argument("--z", type=int, default=128)
 p.add_argument("--base", type=int, default=32)
 p.add_argument("--norm", default="batch", choices=["batch", "none"])
 p.add_argument("--act", default="relu", choices=["relu", "leaky"])
+p.add_argument("--size", type=int, default=3, choices=range(11), help="synthetic defect size 0-10")
 p.add_argument("--config", help="JSON with z/base/norm/act (e.g. configs/best.json); overrides those flags")
 a = p.parse_args()
 if a.config:
@@ -26,4 +27,4 @@ if a.config:
 dev = get_device()
 model = AE(a.z, a.base, a.norm, a.act).to(dev)
 model.load_state_dict(torch.load(a.checkpoint, map_location=dev))
-evaluate(model, dev)
+evaluate(model, dev, a.size)

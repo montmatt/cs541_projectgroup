@@ -1,0 +1,15 @@
+{
+  "source": "z=32 starting point, other values are the scripts/train.py defaults (seed 0); checkpoints/ae_z32.pt",
+  "z": 32,
+  "base": 32,
+  "norm": "batch",
+  "act": "relu",
+  "loss": "mse",
+  "lr": 0.001,
+  "weight_decay": 0.0,
+  "batch_size": 64,
+  "augment": true,
+  "epochs": 50,
+  "cosine": false,
+  "patience": 5
+}
